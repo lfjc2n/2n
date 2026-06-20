@@ -4607,7 +4607,7 @@ function submitExam() {
   submitToGoogleFormsWithRetry(answersData).then(result => {
     if (result.success) {
       console.log('✅ Google Forms submission successful');
-      updateSubmissionStatus('success', '✅ Answers successfully submitted to Google Forms!');
+      updateSubmissionStatus('success', '✅ Answers successfully submitted !');
     } else if (result.offline) {
       console.log('📴 Submission saved offline');
       updateSubmissionStatus('error', '📴 Submission saved offline. Will auto-retry when online.');
