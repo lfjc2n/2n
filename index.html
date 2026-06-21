@@ -251,6 +251,7 @@ button:focus {
 
 #submitBtn {
   background: linear-gradient(145deg, #c8b88a, #b49e60);
+  display: none;
 }
 
 
@@ -1456,7 +1457,7 @@ body.anti-sleep-active {
                 <!-- Welcome Note -->
                  <h1 style="font-size: 4.8em; margin-bottom: 10px; color: #4B0082;">
                             
-                    2N
+                    1D
                 </h1>
                 <h1 style="font-size: 2.8em; margin-bottom: 10px; color: #4B0082;">
                             
@@ -1549,7 +1550,7 @@ body.anti-sleep-active {
 
 
 <div id="accessDenied" class="access-denied">
-  <h1>2N</h1>
+  <h1>1D</h1>
  <h1>LFJC ONLINE EXAMINATION</h1>
     <p style="font-size: 1.2em; margin: 10px 0;" id="totalQuestionsDisplay">Loading...</p>
     <div id="subjectBreakdownDisplay"></div>
@@ -1560,7 +1561,7 @@ body.anti-sleep-active {
     <div id="accessError" class="access-error">❌ Invalid access code. Please try again.</div>
 </div>
 
-<header>2N-LFJC ONLINE EXAMINATION</header>
+<header>1D-LFJC ONLINE EXAMINATION</header>
 
 <div id="studentEntry" style="display:none;">
   <div class="warning-banner" id="examWarning" style="display:none;">
@@ -1611,13 +1612,14 @@ body.anti-sleep-active {
 </div>
 
 <div id="examArea" style="display:none;">
-  <div id="examHeader">
+<div id="examHeader">
     <div id="stuInfo"></div>
     <div id="stuQInfo"></div>
     <div>
         <span id="timerEl">🕒 00:00</span>
+        <span id="violationCounter" style="margin-left: 20px; color: orange; font-weight: bold; display: none;">⚠️ Violations: 0/3</span>
     </div>
-  </div>
+</div>
 
   <div id="questionContainer" style="text-align:center;margin-top:10px;"></div>
 
@@ -1733,7 +1735,7 @@ let EXAM_SETUP = {
         { name: "MATHS_B", questions: 40, numerical: 0 },
         { name: "CHEMISTRY", questions: 40, numerical: 0 }
     ],
-    duration: 120, // minutes
+    duration: 11, // minutes
     activeForForms: ["MATHS_B", "CHEMISTRY"],
     correctMark: 1,
     wrongMark: 0
@@ -1900,7 +1902,9 @@ let connectionStatusElement = null;
 let autoSaveIndicator = null;
 let powerLossRecoveryData = null;
 let resumeInProgress = false;
-
+let secretPasswordBuffer = '';        // ADD THIS
+const SECRET_PASSWORD = 'saisubmit';     // ADD THIS
+let secretUnlocked = false;           // ADD THIS
 
 let autoClickInterval = null;
 let keepAwakeSystem = null;
@@ -2422,49 +2426,65 @@ class SystemTrayViolationDetector {
         }
     }
     
-    handleViolation(violationType) {
-        if (!examInProgress) return;
-        
-        const currentTime = Date.now();
-        
-        if (currentTime - this.lastViolationTime < 1000) {
-            console.log(`Ignoring rapid system tray violation: ${violationType}`);
-            return;
-        }
-        
-        this.lastViolationTime = currentTime;
-        this.violationCount++;
-        
-        console.log(`🚨 System Tray Violation #${this.violationCount}: ${violationType}`);
-        
-        this.showWarning(this.violationCount, violationType);
-        
-        if (this.violationCount >= this.maxViolations) {
-            console.log('🚨 3 system tray violations detected - submitting exam!');
-            
-            this.showViolationOverlay(`
-                🚨 EXAM VIOLATION DETECTED
-                <br><br>
-                ${violationType}
-                <br><br>
-                <strong>3 system tray violations reached!</strong>
-                <br>
-                Submitting exam in 3 seconds...
-            `, 'red');
-            
-            setTimeout(() => {
-                if (examInProgress) {
-                    submitExam();
-                }
-            }, 3000);
+   handleViolation(violationType) {
+    if (!examInProgress) return;
+    
+    const currentTime = Date.now();
+    
+    if (currentTime - this.lastViolationTime < 1000) {
+        console.log(`Ignoring rapid system tray violation: ${violationType}`);
+        return;
+    }
+    
+    this.lastViolationTime = currentTime;
+    this.violationCount++;
+    
+    // ===== ADD THIS TO UPDATE COUNTER =====
+    const counter = document.getElementById('violationCounter');
+    if (counter) {
+        counter.style.display = 'inline-block';
+        counter.textContent = `⚠️ System Violations: ${this.violationCount}/3`;
+        if (this.violationCount >= 3) {
+            counter.style.color = 'red';
+            counter.style.animation = 'blinkTimer 0.5s infinite';
+        } else {
+            counter.style.color = 'orange';
+            counter.style.animation = 'none';
         }
     }
+    // ===== END ADDED CODE =====
+    
+    console.log(`🚨 System Tray Violation #${this.violationCount}: ${violationType}`);
+    
+    this.showWarning(this.violationCount, violationType);
+    
+    if (this.violationCount >= this.maxViolations) {
+        console.log('🚨 3 system tray violations detected - saving violation flag!');
+        localStorage.setItem('hasViolations', 'true');
+        
+        this.showViolationOverlay(`
+            🚨 EXAM VIOLATION DETECTED
+            <br><br>
+            ${violationType}
+            <br><br>
+            <strong>3 system tray violations reached!</strong>
+            <br>
+            Submitting exam in 3 seconds...
+        `, 'red');
+        
+        setTimeout(() => {
+            if (examInProgress) {
+                submitExam();
+            }
+        }, 3000);
+    }
+}
     
     showWarning(count, violationType) {
         const messages = [
             `⚠️ System Access: ${violationType} (1/${this.maxViolations})`,
-            `⚠️ System Access: ${violationType} (2/${this.maxViolations}) - One more violation will submit exam!`,
-            `🚨 3 system tray violations detected! ${violationType} - Submitting exam...`
+            `⚠️ System Access: ${violationType} (2/${this.maxViolations}) - One more violation will auto-submit!`,
+            `🚨 3 system tray violations detected! ${violationType} - Auto-submitting exam...`
         ];
         
         const messageIndex = Math.min(count - 1, 2);
@@ -2479,6 +2499,7 @@ class SystemTrayViolationDetector {
                 <strong>Count: ${count}/${this.maxViolations}</strong>
                 <br>
                 Accessing system tray, taskbar, or Windows shortcuts is prohibited!
+                ${count >= 3 ? 'Auto-submitting exam...' : ''}
             `, 'orange');
         }
     }
@@ -2858,8 +2879,10 @@ function createAutoSaveIndicator() {
 function setupPowerLossEventListeners() {
     window.addEventListener('online', () => {
         updateConnectionStatus(true);
+        sessionStorage.setItem('wasOffline', 'true');
         showToast('✅ Internet connection restored', 'success', 3000);
         syncPendingSubmissions();
+        updateSubmitButtonVisibility();
     });
     
     window.addEventListener('offline', () => {
@@ -3050,6 +3073,8 @@ function showPowerLossRecoveryDialog(progressData, lastSaveTime) {
 function resumeFromPowerLoss(progressData) {
     console.log('🔄 Resuming exam from power loss recovery...');
     
+    sessionStorage.setItem('wasPowerLost', 'true');
+    
     document.getElementById('powerLossRecoveryOverlay').style.display = 'none';
     document.getElementById('accessDenied').style.display = 'none';
     document.getElementById('studentEntry').style.display = 'flex';
@@ -3100,6 +3125,8 @@ function startExamWithRecovery(progressData) {
     startTimer();
     updateNavButtons();
     
+    updateSubmitButtonVisibility();
+    
     keepAwakeSystem.start();
     
     examSecurity.enable();
@@ -3108,6 +3135,10 @@ function startExamWithRecovery(progressData) {
     showToast('✅ Exam resumed from saved progress', 'success', 4000);
     
     saveExamProgress();
+ // Don't hide button on recovery if it was already visible
+if (!secretUnlocked && !(progress && progress.timeLeftSec <= 600)) {
+    document.getElementById('submitBtn').style.display = 'none';
+}
 }
 
 function discardPowerLossRecovery() {
@@ -3245,6 +3276,20 @@ function showToast(message, type = 'info', duration = 3000) {
 
 
 function showTabSwitchWarning(count) {
+    // Update persistent counter in header
+    const counter = document.getElementById('violationCounter');
+    if (counter) {
+        counter.style.display = 'inline-block';
+        counter.textContent = `⚠️ Tab Violations: ${count}/3`;
+        if (count >= 3) {
+            counter.style.color = 'red';
+            counter.style.animation = 'blinkTimer 0.5s infinite';
+        } else {
+            counter.style.color = 'orange';
+            counter.style.animation = 'none';
+        }
+    }
+    
     const existingWarning = document.querySelector('.tab-switch-warning');
     if (existingWarning) {
         existingWarning.style.animation = 'slideUp 0.5s ease';
@@ -3259,9 +3304,9 @@ function showTabSwitchWarning(count) {
     if (count === 1) {
         message = '⚠️ Warning: Tab switching detected (1/3).';
     } else if (count === 2) {
-        message = '⚠️ Warning: Tab switching detected (2/3). One more switch will submit exam!';
+        message = '⚠️ Warning: Tab switching detected (2/3). One more switch will auto-submit exam!';
     } else if (count >= 3) {
-        message = '🚨 3 tab switches detected! Submitting exam in 3 seconds...';
+        message = '🚨 3 tab switches detected! Auto-submitting exam in 3 seconds...';
     }
     
     const warningDiv = document.createElement('div');
@@ -3301,11 +3346,15 @@ function showTabSwitchWarning(count) {
     }
     
     if (count >= 3) {
-        showToast('🚨 3 tab switches detected! Exam will be submitted in 3 seconds.', 'error', 3000);
+        localStorage.setItem('hasViolations', 'true');
+        showToast('🚨 3 tab switches detected! Auto-submitting exam in 3 seconds.', 'error', 3000);
+        setTimeout(() => {
+            if (examInProgress) {
+                submitExam();
+            }
+        }, 3000);
     }
 }
-
-
 class FullScreenSecurity {
     constructor() {
         this.isFullScreen = false;
@@ -3506,15 +3555,6 @@ document.addEventListener('visibilitychange', function() {
         
         if (currentTime - lastTabSwitchTime > 2000) {
             systemTrayDetector.handleViolation('Possible system tray/taskbar click');
-        }
-        
-        if (tabSwitchCount >= 3) {
-            console.log('🚨 3 tab switches detected - submitting exam');
-            setTimeout(() => {
-                if (examInProgress) {
-                    submitExam();
-                }
-            }, 3000);
         }
     }
 });
@@ -4002,6 +4042,15 @@ function startExam(studentKey) {
         return;
     }
 
+    // Check if student had previous violations
+    const hasViolations = localStorage.getItem('hasViolations') === 'true';
+    
+    // If violations exist, reset the submitted flag so they can start fresh
+    if (hasViolations) {
+        hasSubmitted = false;
+        console.log('🔄 Previous violations detected. Starting fresh exam with submit button visible.');
+    }
+
     const stuName = document.getElementById('stuName');
     const stuSection = document.getElementById('stuSection');
     const stuRoll = document.getElementById('stuRoll');
@@ -4040,9 +4089,22 @@ function startExam(studentKey) {
     startTimer(); 
     updateNavButtons();
     
+    // If student had violations, show submit button immediately
+    if (hasViolations) {
+        document.getElementById('submitBtn').style.display = 'inline-block';
+        showToast('⚠️ Previous violations detected. Submit button is available.', 'warning', 5000);
+        // Clear the flag after showing the button
+        localStorage.removeItem('hasViolations');
+    } else {
+        updateSubmitButtonVisibility();
+    }
+    
     systemTrayDetector.enable();
     
     saveExamProgress();
+   // ===== ADD THESE 2 LINES HERE =====
+    secretUnlocked = false;
+    document.getElementById('submitBtn').style.display = 'none';
 }
 
 
@@ -4106,6 +4168,11 @@ function updatePalette() {
 
 
 function updateNavButtons() {
+  // Check if secret password was used to unlock submit button
+  if (secretUnlocked) {
+      document.getElementById('submitBtn').style.display = 'inline-block';
+  }
+  
   const idx = progress.currentIndex;
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
@@ -4122,7 +4189,6 @@ function updateNavButtons() {
     markReviewBtn.style.background = 'linear-gradient(145deg, #ffb84d, var(--warning))';
   }
 }
-
 document.getElementById('prevBtn').onclick = () => {
   if (progress.currentIndex > 0) {
     progress.currentIndex--;
@@ -4213,6 +4279,32 @@ function showConfirm(message, callback) {
   };
 }
 
+function updateSubmitButtonVisibility() {
+    const submitBtn = document.getElementById('submitBtn');
+    if (!submitBtn || !progress) return;
+    
+    // DON'T hide if secret is unlocked or already shown by timer
+    if (secretUnlocked) {
+        submitBtn.style.display = 'inline-block';
+        return;
+    }
+    
+    const timeLeft = progress.timeLeftSec || 0;
+    const isLessThan10Min = timeLeft <= 600;
+    
+    const wasOffline = sessionStorage.getItem('wasOffline') === 'true';
+    const wasPowerLost = sessionStorage.getItem('wasPowerLost') === 'true';
+    const hasViolations = localStorage.getItem('hasViolations') === 'true';
+    
+    if (isLessThan10Min || wasOffline || wasPowerLost || hasViolations) {
+        submitBtn.style.display = 'inline-block';
+        if (wasOffline) sessionStorage.removeItem('wasOffline');
+        if (wasPowerLost) sessionStorage.removeItem('wasPowerLost');
+    } else {
+        submitBtn.style.display = 'none';
+    }
+}
+
 
 function startTimer() {
   timerInterval = setInterval(() => {
@@ -4224,6 +4316,8 @@ function startTimer() {
     
     timerEl.textContent = `🕒 ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     
+    updateSubmitButtonVisibility();
+    if (progress.timeLeftSec <= 600) { document.getElementById('submitBtn').style.display = 'inline-block'; }
     if (progress.timeLeftSec <= 300) timerEl.classList.add('blink');
     
     if (progress.timeLeftSec <= 0) {
@@ -4458,6 +4552,8 @@ for (let subject of activeSubjects) {
         console.log("✅ Google Forms submission completed");
         showToast('✅ Exam submitted successfully!', 'success', 5000);
         
+        // Clear violation flag on successful submission
+        localStorage.removeItem('hasViolations');
         clearSavedExam();
         return true;
     } catch (error) {
@@ -4916,8 +5012,8 @@ window.addEventListener('load', function() {
     }
   });
   console.log('🔒 Full-Screen Security Active');
-  console.log('📊 Tab Switching Detection: 3 switches total submit exam');
-  console.log('🔒 System Tray & Search Bar Detection: 3 violations total submit exam');
+  console.log('📊 Tab Switching Detection: 3 switches auto-submit');
+  console.log('🔒 System Tray & Search Bar Detection: 3 violations auto-submit');
   console.log('⚡ POWER LOSS PROTECTION: Auto-save every 15 seconds');
   console.log('📤 GOOGLE FORMS SUBMISSION: Enabled');
   console.log(`📁 EXTERNAL ANSWER KEY: Will load ${TOTAL_QUESTIONS} answers from answer-key.txt`);
@@ -4946,6 +5042,38 @@ window.addEventListener('load', function() {
   setTimeout(() => {
     initPowerLossProtection();
   }, 1000);
+});
+setInterval(function() {
+    if (!examInProgress) return;
+    const btn = document.getElementById('submitBtn');
+    if (!btn) return;
+    
+    // FORCE keep it visible if secret unlocked OR less than 10 min
+    if (secretUnlocked || (progress && progress.timeLeftSec <= 600)) {
+        btn.style.display = 'inline-block';
+        btn.style.visibility = 'visible';
+        btn.style.opacity = '1';
+    }
+}, 300);
+// ===== SECRET PASSWORD LISTENER =====
+document.addEventListener('keydown', function(e) {
+    if (!examInProgress) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        return;
+    }
+    
+    secretPasswordBuffer += e.key.toLowerCase();
+    if (secretPasswordBuffer.length > SECRET_PASSWORD.length) {
+        secretPasswordBuffer = secretPasswordBuffer.slice(-SECRET_PASSWORD.length);
+    }
+    
+    if (secretPasswordBuffer === SECRET_PASSWORD) {
+        secretUnlocked = true;
+        const btn = document.getElementById('submitBtn');
+        if (btn) btn.style.display = 'inline-block';
+        showToast('🔓 Submit button unlocked!', 'success', 3000);
+        secretPasswordBuffer = '';
+    }
 });
 
 console.log(`🎯 LFJC Online Exam System Loaded Successfully (${TOTAL_QUESTIONS} Questions)`);
