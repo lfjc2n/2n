@@ -1429,6 +1429,12 @@ button:focus {
 body.anti-sleep-active {
   animation: antiSleepPulse 60s infinite;
 }
+
+/* ===== SHIMMER ANIMATION FOR LAZY LOADING ===== */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
 </style>
 </head>
 
@@ -1457,7 +1463,7 @@ body.anti-sleep-active {
                 <!-- Welcome Note -->
                  <h1 style="font-size: 4.8em; margin-bottom: 10px; color: #4B0082;">
                             
-                   2N
+                  2N
                 </h1>
                 <h1 style="font-size: 2.8em; margin-bottom: 10px; color: #4B0082;">
                             
@@ -1554,7 +1560,7 @@ body.anti-sleep-active {
  <h1>LFJC ONLINE EXAMINATION</h1>
     <p style="font-size: 1.2em; margin: 10px 0;" id="totalQuestionsDisplay">Loading...</p>
     <div id="subjectBreakdownDisplay"></div>
-  <p style="margin: 10px 0; font-weight: bold;" id="correctMarkDisplay">CORRECT ANSWER + 1 MARKS</p>  
+  <p style="margin: 10px 0; font-weight: bold;" id="correctMarkDisplay">CORRECT ANSWER +1  MARK</p>  
   <p style="margin: 5px 0; font-weight: bold;" id="wrongMarkDisplay">WRONG ANSWER 0 MARK</p>
     <input type="password" id="accessCode" class="access-code-input" placeholder="Enter Access Code">
     <button id="verifyAccess" class="verify-btn">VERIFY ACCESS</button>
@@ -1675,19 +1681,7 @@ body.anti-sleep-active {
   
   
   <div id="detailedResultsContainer" style="overflow-x:auto;display:flex;justify-content:center;width:100%;margin:30px 0;"></div>
-  
-  
-  <div id="downloadSection" class="download-section">
-    <h4 style="color: #4B0082; margin-bottom: 15px;">📥 Download Your Answer Sheet</h4>
-    <button onclick="downloadStudentCSV()" class="download-btn">
-      💾 Download Complete Answer Sheet (CSV)
-    </button>
-    <p style="margin-top: 10px; color: #6c757d;">
-      <small>Contains all your answers in original question order (Q1, Q2, Q3...). Perfect for analysis in Excel.</small>
-    </p>
-  </div>
-  
-  
+    
   <div id="reviewQuestionsContainer"></div>
   
   <div style="text-align:center; margin:30px 0;">
@@ -1732,11 +1726,11 @@ body.anti-sleep-active {
 
 let EXAM_SETUP = {
     subjects: [
-        { name: "MATHS_B", questions: 40, numerical: 0 },
-        { name: "CHEMISTRY", questions: 40, numerical: 0 }
+        { name: "MATHS_A", questions: 40, numerical: 0 },
+        { name: "PHYSICS", questions: 40, numerical: 0 }
     ],
     duration: 120, // minutes
-    activeForForms: ["MATHS_B", "CHEMISTRY"],
+    activeForForms: ["MATHS_A", "PHYSICS"],
     correctMark: 1,
     wrongMark: 0
 };
@@ -1794,7 +1788,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('subjectBreakdownDisplay').innerHTML = breakdownHTML;
 });
 
-let MARK_PER_CORRECT = 1, MARK_PER_WRONG = 0;
+let MARK_PER_CORRECT = 1 , MARK_PER_WRONG = 0;
 const STORAGE_KEY_PREFIX = "lfjc_exam_";
 const ACCESS_CODE = "lfjc2025";
 const ADMIN_PASSWORD = "admin2025";
@@ -1919,7 +1913,7 @@ let systemTrayDetector = null;
 const subjects = EXAM_SETUP.subjects.map(s => s.name);
 let examData = {files: [], subjectNames: [], keys: [], originalOrder: [], questionTypes: []};
 let progress = null, timerInterval = null;
-
+let examEndTime = null; 
 
 function startAutoClick() {
     if (autoClickInterval) {
@@ -2565,7 +2559,6 @@ async function loadAnswerKey() {
         
         const text = await response.text();
         answerKey = parseAnswerKeyFile(text);
-        
       
         if (answerKey.length !== TOTAL_QUESTIONS) {
             console.error(`❌ Expected ${TOTAL_QUESTIONS} answers, but got ${answerKey.length}`);
@@ -2575,11 +2568,9 @@ async function loadAnswerKey() {
             console.log(`✅ Perfect! ${TOTAL_QUESTIONS} answers loaded`);
         }
         
-        
         for (let i = 0; i < TOTAL_QUESTIONS; i++) {
             const qNum = i + 1;
             const answer = answerKey[i];
-            
             
             let isNumerical = false;
             EXAM_SETUP.subjects.forEach(subject => {
@@ -2591,12 +2582,10 @@ async function loadAnswerKey() {
             });
             
             if (isNumerical) {
-                
                 if (answer !== '' && !/^-?\d+(\.\d+)?$/.test(answer)) {
                     throw new Error(`Invalid numerical answer at Q${qNum}: "${answer}"`);
                 }
             } else {
-                
                 if (!['A', 'B', 'C', 'D', ''].includes(answer)) {
                     throw new Error(`Invalid MCQ answer at Q${qNum}: "${answer}"`);
                 }
@@ -2613,6 +2602,7 @@ async function loadAnswerKey() {
             images.push(`questions/${i}.png`);
         }
         
+        // ✅ UNCOMMENT THIS - Call preloadAllImages to start lazy loading
         await preloadAllImages();
         
         showToast('✅ Answer key loaded! Enter access code.', 'success', 3000);
@@ -2648,23 +2638,17 @@ function parseAnswerKeyFile(text) {
         line = line.trim();
         if (!line) continue;
         
-        // Check if line contains ONLY letters A-D
         if (/^[A-D]+$/i.test(line)) {
-            // Letters: split each character as separate answer
             for (let i = 0; i < line.length; i++) {
                 answers.push(line[i].toUpperCase());
             }
             console.log(`📝 Letters "${line}" → ${line.length} answers`);
         }
-        // Check if line contains numbers (numerical answers)
         else if (/^[0-9]+$/.test(line)) {
-            // Numbers: whole line is ONE answer
             answers.push(line);
             console.log(`📝 Numerical "${line}" → 1 answer`);
         }
-        // Mixed or other (should not happen)
         else {
-            // Try to parse as individual letters if they are A-D
             for (let i = 0; i < line.length; i++) {
                 if (line[i].match(/[A-D]/i)) {
                     answers.push(line[i].toUpperCase());
@@ -2679,166 +2663,298 @@ function parseAnswerKeyFile(text) {
 }
 
 
-async function preloadAllImages() {
-    console.log("🖼️ Preloading all question images...");
+// =============================================
+// LAZY LOADING SYSTEM - ADDED ONLY HERE
+// =============================================
+
+const imageCache = new Map();
+const loadingQueue = new Set();
+let totalImagesLoaded = 0;
+
+function getImageWithState(questionNumber) {
+    if (imageCache.has(questionNumber)) {
+        return { state: 'loaded', image: imageCache.get(questionNumber) };
+    }
+    if (loadingQueue.has(questionNumber)) {
+        return { state: 'loading', image: null };
+    }
+    return { state: 'not-loaded', image: null };
+}
+
+function loadImageSafe(questionNumber) {
+    if (loadingQueue.has(questionNumber)) {
+        return Promise.resolve(null);
+    }
+    if (imageCache.has(questionNumber)) {
+        return Promise.resolve(imageCache.get(questionNumber));
+    }
     
-    const imagePromises = [];
+    loadingQueue.add(questionNumber);
     
-    for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
-        const possiblePaths = [
-            `questions/${i}.png`,
-            `questions/Q${i}.png`,
-            `questions/${i}.jpg`,
-            `questions/Q${i}.jpg`,
-            `questions/${i}.jpeg`,
-            `questions/Q${i}.jpeg`,
-            `images/${i}.png`,
-            `images/Q${i}.png`
-        ];
+    return new Promise((resolve) => {
+        const img = new Image();
         
-        for (const path of possiblePaths) {
-            const promise = new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    console.log(`✅ Preloaded: ${path}`);
-                    preloadedImages[path] = img;
-                    resolve(path);
-                };
-                img.onerror = () => {
-                    console.log(`❌ Failed to preload: ${path}`);
-                    resolve(null);
-                };
-                img.src = path;
-            });
-            imagePromises.push(promise);
-        }
-    }
-    
-    await Promise.all(imagePromises);
-    console.log("✅ Image preloading complete");
+        const timeoutId = setTimeout(() => {
+            console.warn(`⚠️ Image ${questionNumber} timeout`);
+            loadingQueue.delete(questionNumber);
+            imageCache.set(questionNumber, null);
+            resolve(null);
+        }, 5000);
+        
+        img.onload = () => {
+            clearTimeout(timeoutId);
+            imageCache.set(questionNumber, img);
+            loadingQueue.delete(questionNumber);
+            totalImagesLoaded++;
+            console.log(`✅ Image ${questionNumber} loaded (${totalImagesLoaded}/${TOTAL_QUESTIONS})`);
+            resolve(img);
+            updateImageDisplay(questionNumber);
+        };
+        
+        img.onerror = () => {
+            clearTimeout(timeoutId);
+            loadingQueue.delete(questionNumber);
+            imageCache.set(questionNumber, null);
+            console.warn(`❌ Image ${questionNumber} not found`);
+            resolve(null);
+            updateImageError(questionNumber);
+        };
+        
+        img.src = getBestImagePath(questionNumber);
+    });
 }
 
-function getBestImagePath(questionNumber) {
-    const possiblePaths = [
-        `questions/${questionNumber}.png`,
-        `questions/Q${questionNumber}.png`,
-        `questions/${questionNumber}.jpg`,
-        `questions/Q${questionNumber}.jpg`,
-        `questions/${questionNumber}.jpeg`,
-        `questions/Q${questionNumber}.jpeg`,
-        `images/${questionNumber}.png`,
-        `images/Q${questionNumber}.png`,
-        `images/${questionNumber}.jpg`,
-        `images/Q${questionNumber}.jpg`
-    ];
+function renderQuestionImage(questionNumber) {
+    const state = getImageWithState(questionNumber);
     
-    for (const path of possiblePaths) {
-        if (preloadedImages[path]) {
-            return path;
-        }
-    }
-    
-    return `questions/${questionNumber}.png`;
-}
-
-function renderImageContainer(imagePath, questionNumber) {
-    const preloadedImg = preloadedImages[imagePath];
-    
-    if (preloadedImg) {
+    if (state.state === 'loaded' && state.image) {
         return `
             <div class="question-image-container">
-                <img src="${imagePath}" 
+                <img src="${getBestImagePath(questionNumber)}" 
                      class="question-image" 
-                     alt="Question ${questionNumber}"
-                     style="max-width: 100%; max-height: 500px; object-fit: contain;">
-            </div>
-        `;
-    } else {
-        return `
-            <div class="question-image-container">
-                <img src="${imagePath}" 
-                     class="question-image" 
-                     alt="Question ${questionNumber}"
-                     onload="console.log('✅ Image loaded successfully: ${imagePath}')"
-                     onerror="handleImageError(this, ${questionNumber})"
-                     style="max-width: 100%; max-height: 500px; object-fit: contain;">
+                     alt="Question"
+                     style="max-width: 100%; max-height: 500px; object-fit: contain; border-radius: 8px;">
             </div>
         `;
     }
-}
-
-function handleImageError(imgElement, questionNumber) {
-    console.error(`❌ Image failed to load: ${imgElement.src}`);
     
-    const container = imgElement.closest('.question-image-container');
-    if (container) {
-        container.innerHTML = `
-            <div class="image-fallback">
-                <h3>⚠️ Question Image Not Available</h3>
-                <p>Question ${questionNumber}</p>
-                <p style="margin-top: 20px; font-size: 14px;">
-                    Please refer to your question paper or contact the exam administrator.
-                </p>
-                <div style="margin-top: 20px;">
-                    <button onclick="retryImageLoad(${questionNumber})" 
-                            style="padding: 8px 16px; background: #4B0082; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        Retry Loading
-                    </button>
+    loadImageSafe(questionNumber);
+    
+    const loadingClass = state.state === 'loading' ? 'loading' : '';
+    
+    return `
+        <div class="question-image-container" id="img-container-${questionNumber}">
+            <div class="image-placeholder ${loadingClass}" id="placeholder-${questionNumber}" style="
+                min-height: 300px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                background: #f8f9fa;
+                border: 2px dashed #dee2e6;
+                padding: 20px;
+                ${loadingClass ? 'background: linear-gradient(135deg, #f5f5f5 25%, #e0e0e0 50%, #f5f5f5 75%); background-size: 200% 200%; animation: shimmer 1.5s infinite;' : ''}
+            ">
+                <div style="
+                    width: 40px;
+                    height: 40px;
+                    border: 4px solid #f3f3f3;
+                    border-top: 4px solid #4B0082;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                "></div>
+                <div style="margin-top: 15px; color: #6c757d; font-size: 14px;">
+                    Loading...
                 </div>
+            </div>
+            <img data-question="${questionNumber}"
+                 data-src="${getBestImagePath(questionNumber)}"
+                 class="question-image lazy-image"
+                 alt="Question"
+                 style="display: none; max-width: 100%; max-height: 500px; object-fit: contain; border-radius: 8px;"
+                 onload="this.style.display='block'; document.getElementById('placeholder-${questionNumber}').style.display='none';">
+        </div>
+    `;
+}
+
+function updateImageDisplay(questionNumber) {
+    const container = document.getElementById(`img-container-${questionNumber}`);
+    if (container) {
+        const img = container.querySelector('.lazy-image');
+        const placeholder = document.getElementById(`placeholder-${questionNumber}`);
+        if (img && placeholder) {
+            const cachedImage = imageCache.get(questionNumber);
+            if (cachedImage) {
+                img.style.display = 'block';
+                img.src = img.dataset.src;
+                placeholder.style.display = 'none';
+            }
+        }
+    }
+}
+
+function updateImageError(questionNumber) {
+    const placeholder = document.getElementById(`placeholder-${questionNumber}`);
+    if (placeholder) {
+        placeholder.style.cssText = `
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 20px;
+            color: #856404;
+            text-align: center;
+        `;
+        placeholder.innerHTML = `
+            <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+            <div style="font-weight: bold; margin-bottom: 5px;">Image Not Available</div>
+            <div style="font-size: 14px; color: #856404;">
+                Image could not be loaded
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 15px;">
+                <button onclick="retryImageLoad(${questionNumber})" 
+                        style="padding: 8px 20px; 
+                               background: #4B0082; color: white; border: none; 
+                               border-radius: 4px; cursor: pointer;">
+                    🔄 Retry
+                </button>
+                <button onclick="skipImageError(${questionNumber})" 
+                        style="padding: 8px 20px; 
+                               background: #6c757d; color: white; border: none; 
+                               border-radius: 4px; cursor: pointer;">
+                    ⏭️ Skip
+                </button>
             </div>
         `;
     }
 }
 
 function retryImageLoad(questionNumber) {
-    const idx = progress.currentIndex;
-    const originalIndex = examData.originalOrder[idx] + 1;
+    console.log(`🔄 Retrying image ${questionNumber}`);
+    imageCache.delete(questionNumber);
+    loadingQueue.delete(questionNumber);
+    loadImageSafe(questionNumber);
     
-    const alternativePaths = [
-        `questions/${originalIndex}.png`,
-        `questions/Q${originalIndex}.png`,
-        `questions/${originalIndex}.jpg`,
-        `questions/Q${originalIndex}.jpg`,
-        `images/${originalIndex}.png`,
-        `images/Q${originalIndex}.png`
-    ];
-    
-    let retryCount = 0;
-    const maxRetries = alternativePaths.length;
-    
-    function tryNextPath() {
-        if (retryCount >= maxRetries) {
-            console.error(`❌ All image paths failed for question ${originalIndex}`);
-            return;
-        }
-        
-        const path = alternativePaths[retryCount];
-        console.log(`🔄 Retrying image ${retryCount + 1}/${maxRetries}: ${path}`);
-        
-        const img = new Image();
-        img.onload = function() {
-            console.log(`✅ Retry successful: ${path}`);
-            const container = document.querySelector('.question-image-container');
-            if (container) {
-                container.innerHTML = `
-                    <img src="${path}" 
-                         class="question-image" 
-                         alt="Question ${questionNumber}"
-                         style="max-width: 100%; max-height: 500px; object-fit: contain;">
-                `;
-            }
-        };
-        img.onerror = function() {
-            console.log(`❌ Retry failed: ${path}`);
-            retryCount++;
-            setTimeout(tryNextPath, 500);
-        };
-        img.src = path;
+    const placeholder = document.getElementById(`placeholder-${questionNumber}`);
+    if (placeholder) {
+        placeholder.style.cssText = `
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #f5f5f5 25%, #e0e0e0 50%, #f5f5f5 75%);
+            background-size: 200% 200%;
+            animation: shimmer 1.5s infinite;
+            border: 2px dashed #dee2e6;
+            padding: 20px;
+        `;
+        placeholder.innerHTML = `
+            <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #4B0082; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <div style="margin-top: 15px; color: #6c757d; font-size: 14px;">
+                Retrying...
+            </div>
+        `;
     }
-    
-    tryNextPath();
 }
 
+function skipImageError(questionNumber) {
+    const placeholder = document.getElementById(`placeholder-${questionNumber}`);
+    if (placeholder) {
+        placeholder.style.cssText = `
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            padding: 20px;
+            color: #6c757d;
+            text-align: center;
+        `;
+        placeholder.innerHTML = `
+            <div style="font-size: 24px; margin-bottom: 10px;">📝</div>
+            <div style="font-size: 14px;">Image not available - you can still answer</div>
+            <div style="font-size: 12px; margin-top: 5px;">Select an option below</div>
+        `;
+    }
+}
+
+function startBackgroundLoading() {
+    console.log("🔄 Background loading started...");
+    
+    const BATCH_SIZE = 5;
+    const DELAY = 200;
+    
+    async function loadBatch(start) {
+        const end = Math.min(start + BATCH_SIZE - 1, TOTAL_QUESTIONS);
+        
+        const toLoad = [];
+        for (let i = start; i <= end; i++) {
+            if (!imageCache.has(i) && !loadingQueue.has(i)) {
+                toLoad.push(i);
+            }
+        }
+        
+        if (toLoad.length > 0) {
+            await Promise.all(toLoad.map(i => loadImageSafe(i)));
+        }
+        
+        if (end < TOTAL_QUESTIONS) {
+            setTimeout(() => loadBatch(end + 1), DELAY);
+        } else {
+            console.log(`✅ All ${TOTAL_QUESTIONS} images loaded!`);
+        }
+    }
+    
+    loadBatch(4);
+}
+
+async function preloadAllImages() {
+    console.log("🖼️ Starting lazy loading...");
+    
+    // Populate images array
+    images = [];
+    for (let i = 1; i <= TOTAL_QUESTIONS; i++) {
+        images.push(`questions/${i}.png`);
+    }
+    
+    const initialLoad = Math.min(1, TOTAL_QUESTIONS);
+    for (let i = 1; i <= initialLoad; i++) {
+        await loadImageSafe(i);
+    }
+    
+    setTimeout(() => startBackgroundLoading(), 1000);
+    
+    console.log(`✅ ${initialLoad} images loaded, background loading started`);
+    return true;
+}
+
+// =============================================
+// END LAZY LOADING SYSTEM
+// =============================================
+
+
+function getBestImagePath(questionNumber) {
+    return `questions/${questionNumber}.png`;
+}
+
+function renderImageContainer(imagePath, questionNumber) {
+    return renderQuestionImage(questionNumber);
+}
+
+function handleImageError(imgElement, questionNumber) {
+    console.error(`❌ Image failed to load: ${imgElement.src}`);
+    updateImageError(questionNumber);
+}
 
 
 function initPowerLossProtection() {
@@ -3135,7 +3251,6 @@ function startExamWithRecovery(progressData) {
     showToast('✅ Exam resumed from saved progress', 'success', 4000);
     
     saveExamProgress();
- // Don't hide button on recovery if it was already visible
 if (!secretUnlocked && !(progress && progress.timeLeftSec <= 600)) {
     document.getElementById('submitBtn').style.display = 'none';
 }
@@ -3276,7 +3391,6 @@ function showToast(message, type = 'info', duration = 3000) {
 
 
 function showTabSwitchWarning(count) {
-    // Update persistent counter in header
     const counter = document.getElementById('violationCounter');
     if (counter) {
         counter.style.display = 'inline-block';
@@ -3669,7 +3783,6 @@ function prepareExamData() {
         subjectQuestions.push(images[imgIndex]);
         subjectKeys.push(answerKey[imgIndex]);
         subjectOriginalOrder.push(imgIndex);
-        
        
         let questionType = 'mcq';
         if (subject.numerical > 0 && i >= subject.numericalStart) {
@@ -3806,7 +3919,7 @@ function renderQuestion() {
   
   container.innerHTML = `
     <div class="question-transition question-fade-in">
-      ${renderImageContainer(imagePath, originalIndex)}
+      ${renderQuestionImage(originalIndex)}
       ${optionsHTML}
     </div>
   `;
@@ -3827,6 +3940,16 @@ function renderQuestion() {
   }
   
   updatePalette();
+  
+  // Smart preload next 2 questions
+  const next1 = originalIndex + 1;
+  const next2 = originalIndex + 2;
+  if (next1 <= TOTAL_QUESTIONS && !imageCache.has(next1)) {
+    loadImageSafe(next1);
+  }
+  if (next2 <= TOTAL_QUESTIONS && !imageCache.has(next2)) {
+    loadImageSafe(next2);
+  }
 }
 
 function selectOption(opt) {
@@ -4029,7 +4152,12 @@ function startWithSecurity(ok) {
   const studentKey = `${stuName.value}|${stuSection.value}|${stuRoll.value}|${stuAdm.value}`;
   
   examSecurity.enable().then(() => {
-    startExam(studentKey);
+    // Add random delay to stagger student starts (0.5-2 seconds)
+    const delay = Math.random() * 1500 + 500;
+    console.log(`⏳ Student ${stuName.value} starting in ${(delay/1000).toFixed(1)} seconds`);
+    setTimeout(() => {
+      startExam(studentKey);
+    }, delay);
   }).catch(err => {
     console.error('Failed to enable security:', err);
     alert('⚠️ Please allow full-screen mode to start the exam.');
@@ -4042,10 +4170,8 @@ function startExam(studentKey) {
         return;
     }
 
-    // Check if student had previous violations
     const hasViolations = localStorage.getItem('hasViolations') === 'true';
     
-    // If violations exist, reset the submitted flag so they can start fresh
     if (hasViolations) {
         hasSubmitted = false;
         console.log('🔄 Previous violations detected. Starting fresh exam with submit button visible.');
@@ -4089,11 +4215,9 @@ function startExam(studentKey) {
     startTimer(); 
     updateNavButtons();
     
-    // If student had violations, show submit button immediately
     if (hasViolations) {
         document.getElementById('submitBtn').style.display = 'inline-block';
         showToast('⚠️ Previous violations detected. Submit button is available.', 'warning', 5000);
-        // Clear the flag after showing the button
         localStorage.removeItem('hasViolations');
     } else {
         updateSubmitButtonVisibility();
@@ -4102,7 +4226,6 @@ function startExam(studentKey) {
     systemTrayDetector.enable();
     
     saveExamProgress();
-   // ===== ADD THESE 2 LINES HERE =====
     secretUnlocked = false;
     document.getElementById('submitBtn').style.display = 'none';
 }
@@ -4168,7 +4291,6 @@ function updatePalette() {
 
 
 function updateNavButtons() {
-  // Check if secret password was used to unlock submit button
   if (secretUnlocked) {
       document.getElementById('submitBtn').style.display = 'inline-block';
   }
@@ -4283,7 +4405,6 @@ function updateSubmitButtonVisibility() {
     const submitBtn = document.getElementById('submitBtn');
     if (!submitBtn || !progress) return;
     
-    // DON'T hide if secret is unlocked or already shown by timer
     if (secretUnlocked) {
         submitBtn.style.display = 'inline-block';
         return;
@@ -4307,28 +4428,45 @@ function updateSubmitButtonVisibility() {
 
 
 function startTimer() {
-  timerInterval = setInterval(() => {
-    progress.timeLeftSec--;
+    // Store the exact end time
+    const examEndTime = Date.now() + (EXAM_DURATION_MINUTES * 60 * 1000);
+    progress.timeLeftSec = EXAM_DURATION_MINUTES * 60;
     
-    const minutes = Math.floor(progress.timeLeftSec / 60);
-    const seconds = progress.timeLeftSec % 60;
-    const timerEl = document.getElementById('timerEl');
-    
-    timerEl.textContent = `🕒 ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    
-    updateSubmitButtonVisibility();
-    if (progress.timeLeftSec <= 600) { document.getElementById('submitBtn').style.display = 'inline-block'; }
-    if (progress.timeLeftSec <= 300) timerEl.classList.add('blink');
-    
-    if (progress.timeLeftSec <= 0) {
-      clearInterval(timerInterval);
-      submitExam();
-    }
-    
-    if (progress.timeLeftSec % 60 === 0 && examInProgress) {
-      saveExamProgress();
-    }
-  }, 1000);
+    timerInterval = setInterval(() => {
+        // Calculate EXACT time left using real clock
+        const timeLeft = examEndTime - Date.now();
+        
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            submitExam();
+            return;
+        }
+        
+        const minutes = Math.floor(timeLeft / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+        const timerEl = document.getElementById('timerEl');
+        
+        timerEl.textContent = `🕒 ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        // Update progress with accurate value
+        progress.timeLeftSec = Math.floor(timeLeft / 1000);
+        
+        // Show submit button at 10 minutes
+        if (timeLeft <= 600000) {
+            document.getElementById('submitBtn').style.display = 'inline-block';
+        }
+        
+        // Blink at 5 minutes
+        if (timeLeft <= 300000) {
+            timerEl.classList.add('blink');
+        }
+        
+        // Auto-save every minute
+        if (examInProgress && Math.floor(timeLeft / 1000) % 60 === 0) {
+            saveExamProgress();
+        }
+        
+    }, 200); // Check frequently, but ALWAYS based on real time
 }
 
 
@@ -5034,10 +5172,9 @@ window.addEventListener('load', function() {
   
   systemTrayDetector = new SystemTrayViolationDetector();
   
-  // Wait for config to load first, then load answer key
-(async function() {
-    await loadAnswerKey();      // Then load answer key
-})();
+  (async function() {
+    await loadAnswerKey();
+  })();
   
   setTimeout(() => {
     initPowerLossProtection();
@@ -5048,14 +5185,12 @@ setInterval(function() {
     const btn = document.getElementById('submitBtn');
     if (!btn) return;
     
-    // FORCE keep it visible if secret unlocked OR less than 10 min
     if (secretUnlocked || (progress && progress.timeLeftSec <= 600)) {
         btn.style.display = 'inline-block';
         btn.style.visibility = 'visible';
         btn.style.opacity = '1';
     }
 }, 300);
-// ===== SECRET PASSWORD LISTENER =====
 document.addEventListener('keydown', function(e) {
     if (!examInProgress) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
@@ -5080,6 +5215,6 @@ console.log(`🎯 LFJC Online Exam System Loaded Successfully (${TOTAL_QUESTIONS
 console.log("📁 Loading answer key from: " + ANSWER_KEY_URL);
 console.log(`📁 Expecting ${TOTAL_QUESTIONS} answers`);
 console.log("✅ Active subjects for this exam:", ACTIVE_EXAM_SUBJECTS.join(", "));
-</script> 
+</script>
 </body>
 </html>
